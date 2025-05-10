@@ -1,6 +1,5 @@
-
 import { toast } from "@/hooks/use-toast";
-import { createPackageAnalysisPrompt, imageUrlToBase64, parseOpenAIResponse } from "./openai";
+import { PackagingAnalysis, analyzePackageDesign, imageUrlToBase64 } from "./openai";
 
 interface UploadedImage {
   id: string;
@@ -13,12 +12,12 @@ interface AnalysisResult {
   originalSrc: string;
   heatmapSrc: string;
   attentionScore: number;
+  colorImpact: number;
+  readability: number;
+  brandVisibility: number;
   suggestions: string[];
-  aiAnalysis?: string; // New field for raw AI analysis
+  aiAnalysis?: string;
 }
-
-// Hardcoded API key
-const OPENAI_API_KEY = "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";
 
 // In a real app, this would call a backend API
 // For this MVP, we're simulating the backend processing and integrating with OpenAI
@@ -36,37 +35,14 @@ export const analyzeImages = async (images: UploadedImage[]): Promise<AnalysisRe
       
       // Get AI analysis from OpenAI
       const imageBase64 = imageUrlToBase64(image.preview);
-      const prompt = createPackageAnalysisPrompt(imageBase64);
       
-      let attentionScore = 0;
-      let suggestions: string[] = [];
-      let aiAnalysis = "";
+      let analysis: PackagingAnalysis;
       
       try {
-        // Call OpenAI API with hardcoded API key
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${OPENAI_API_KEY}`
-          },
-          body: JSON.stringify(prompt)
-        });
-        
-        if (!response.ok) {
-          throw new Error(`OpenAI API error: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        aiAnalysis = data.choices[0].message.content;
-        
-        // Parse the OpenAI response
-        const parsed = parseOpenAIResponse(data);
-        attentionScore = parsed.attentionScore;
-        suggestions = parsed.suggestions;
-        
+        // Use our new structured output function
+        analysis = await analyzePackageDesign(imageBase64);
       } catch (error) {
-        console.error("Error calling OpenAI API", error);
+        console.error("Error analyzing package design:", error);
         toast({
           title: "AI Analysis Failed",
           description: "Falling back to simulated analysis. API error occurred.",
@@ -74,17 +50,27 @@ export const analyzeImages = async (images: UploadedImage[]): Promise<AnalysisRe
         });
         
         // Fall back to simulated data
-        attentionScore = Math.round((4 + Math.random() * 5.5) * 10) / 10;
-        suggestions = generateSuggestions(attentionScore);
+        const attentionScore = Math.round((4 + Math.random() * 5.5) * 10) / 10;
+        analysis = {
+          attentionScore,
+          colorImpact: Math.round((4 + Math.random() * 5.5) * 10) / 10,
+          readability: Math.round((4 + Math.random() * 5.5) * 10) / 10,
+          brandVisibility: Math.round((4 + Math.random() * 5.5) * 10) / 10,
+          suggestions: generateSuggestions(attentionScore),
+          analysis: "Simulated AI analysis due to API error."
+        };
       }
       
       return {
         imageId: image.id,
         originalSrc: image.preview,
         heatmapSrc,
-        attentionScore,
-        suggestions,
-        aiAnalysis
+        attentionScore: analysis.attentionScore,
+        colorImpact: analysis.colorImpact,
+        readability: analysis.readability,
+        brandVisibility: analysis.brandVisibility,
+        suggestions: analysis.suggestions,
+        aiAnalysis: analysis.analysis
       };
     } catch (error) {
       console.error("Error during analysis:", error);
