@@ -1,50 +1,75 @@
 
-import { toast } from "@/hooks/use-toast";
+import OpenAI from "openai";
 
-// This function converts an image URL (data URL) to base64 format suitable for the OpenAI API
+// This function converts an image URL (data URL) to base64 format
 export const imageUrlToBase64 = (imageUrl: string): string => {
   // Remove the data:image/jpeg;base64, part
   return imageUrl.split(',')[1];
 };
 
-// Craft a prompt for package analysis
-export const createPackageAnalysisPrompt = (imageBase64: string): any => {
+// Create a prompt for package analysis with the new OpenAI client format
+export const createPackageAnalysisPrompt = (imageBase64: string) => {
   return {
     model: "gpt-4o",
-    messages: [
+    input: [
       {
         role: "system",
-        content: "You are a packaging design expert with expertise in consumer attention. Analyze packaging designs and provide specific, actionable feedback on improving attention-grabbing elements. Focus on color, contrast, visual hierarchy, branding elements, and overall composition."
+        content: [
+          {
+            type: "input_text",
+            text: "You are a packaging design expert with expertise in consumer attention. Analyze packaging designs and provide specific, actionable feedback."
+          }
+        ]
       },
       {
         role: "user",
         content: [
           {
-            type: "text",
-            text: "Analyze this product packaging design. Provide an attention score from 1-10, with 10 being excellent. Then, give me 3-5 specific suggestions to improve consumer attention on critical elements. Be specific and actionable."
+            type: "input_text",
+            text: "Analyze this product packaging design. Provide your response in the following JSON format:\n" +
+                  "{\n" +
+                  "  \"attentionScore\": [number between 1-10],\n" +
+                  "  \"suggestions\": [array of 3-5 specific suggestions as strings],\n" +
+                  "  \"analysis\": [detailed analysis text]\n" +
+                  "}\n\n" +
+                  "Focus on color, contrast, visual hierarchy, branding elements, and overall composition."
           },
           {
-            type: "image_url",
-            image_url: {
-              url: `data:image/jpeg;base64,${imageBase64}`
-            }
+            type: "input_image",
+            image_url: `data:image/jpeg;base64,${imageBase64}`
           }
         ]
       }
-    ],
-    max_tokens: 800
+    ]
   };
 };
 
-// Parse the OpenAI response to extract the attention score and suggestions
-export const parseOpenAIResponse = (response: any): { attentionScore: number, suggestions: string[] } => {
+// Parse the OpenAI response
+export const parseOpenAIResponse = (response: any): { attentionScore: number, suggestions: string[], analysis: string } => {
   try {
-    const content = response.choices[0].message.content;
+    // Get the response text
+    const outputText = response.output_text;
     
-    // Extract the attention score (looking for a number between 1-10)
+    // Try to parse it as JSON
+    try {
+      // Look for JSON in the response
+      const jsonMatch = outputText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const jsonContent = JSON.parse(jsonMatch[0]);
+        return {
+          attentionScore: jsonContent.attentionScore || 5,
+          suggestions: jsonContent.suggestions || [],
+          analysis: jsonContent.analysis || outputText
+        };
+      }
+    } catch (jsonError) {
+      console.error("Failed to parse JSON from response", jsonError);
+    }
+    
+    // If we couldn't parse JSON, use the older regex approach as a fallback
     const scoreRegex = /(\d+(\.\d+)?)\s*\/\s*10|attention score:?\s*(\d+(\.\d+)?)|score:?\s*(\d+(\.\d+)?)/i;
-    const scoreMatch = content.match(scoreRegex);
-    let attentionScore = 5; // Default score if we can't find one
+    const scoreMatch = outputText.match(scoreRegex);
+    let attentionScore = 5; // Default score
     
     if (scoreMatch) {
       // Check which capturing group has the score
@@ -56,9 +81,8 @@ export const parseOpenAIResponse = (response: any): { attentionScore: number, su
     }
     
     // Extract suggestions
-    // Look for bullet points, numbered lists, or paragraphs following suggestion keywords
     const suggestionRegex = /(?:suggestions?:|improvements?:|to improve:|could improve:|enhance:|recommendations?:).*?(?:\n\s*(?:[-•*]\s*|\d+\.\s*).*)+/gis;
-    const suggestionMatch = content.match(suggestionRegex);
+    const suggestionMatch = outputText.match(suggestionRegex);
     
     let suggestions: string[] = [];
     
@@ -77,9 +101,9 @@ export const parseOpenAIResponse = (response: any): { attentionScore: number, su
       });
     }
     
-    // If we couldn't extract suggestions using regex, just split by lines and take a few
+    // If we couldn't extract suggestions, split the text to get some
     if (suggestions.length === 0) {
-      const lines = content.split('\n').filter(line => 
+      const lines = outputText.split('\n').filter(line => 
         line.trim().length > 20 && 
         !line.toLowerCase().includes('score') &&
         !line.toLowerCase().includes('analysis')
@@ -92,14 +116,15 @@ export const parseOpenAIResponse = (response: any): { attentionScore: number, su
     
     return {
       attentionScore,
-      suggestions
+      suggestions,
+      analysis: outputText
     };
   } catch (error) {
     console.error("Error parsing OpenAI response", error);
     return {
       attentionScore: 5,
-      suggestions: ["Could not parse AI suggestions. Please try again."]
+      suggestions: ["Could not parse AI suggestions. Please try again."],
+      analysis: "Error parsing response."
     };
   }
 };
-
