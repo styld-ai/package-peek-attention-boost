@@ -1,5 +1,11 @@
 import { toast } from "@/hooks/use-toast";
-import { PackagingAnalysis, analyzePackageDesign, imageUrlToBase64 } from "./openai";
+import {
+  PackagingAnalysis,
+  analyzePackageDesign,
+  fileToBase64
+} from "./openai";
+
+/* ---------- Local types ------------------------------------------ */
 
 interface UploadedImage {
   id: string;
@@ -19,176 +25,147 @@ interface AnalysisResult {
   aiAnalysis?: string;
 }
 
-// In a real app, this would call a backend API
-// For this MVP, we're simulating the backend processing and integrating with OpenAI
-export const analyzeImages = async (images: UploadedImage[]): Promise<AnalysisResult[]> => {
-  // First, show a loading toast
+/* ---------- Public function -------------------------------------- */
+
+export const analyzeImages = async (
+  images: UploadedImage[]
+): Promise<AnalysisResult[]> => {
   toast({
     title: "Analyzing images",
-    description: "Processing images with AI. This may take a moment...",
+    description: "Running AI vision model…"
   });
-  
-  return Promise.all(images.map(async (image) => {
-    try {
-      // Generate a simulated heatmap by applying a color overlay
-      const heatmapSrc = await generateSimulatedHeatmap(image.preview);
-      
-      // Get AI analysis from OpenAI
-      const imageBase64 = imageUrlToBase64(image.preview);
-      
-      let analysis: PackagingAnalysis;
-      
+
+  return Promise.all(
+    images.map(async (image) => {
       try {
-        // Use our new structured output function
-        analysis = await analyzePackageDesign(imageBase64);
-      } catch (error) {
-        console.error("Error analyzing package design:", error);
-        toast({
-          title: "AI Analysis Failed",
-          description: "Falling back to simulated analysis. API error occurred.",
-          variant: "destructive"
-        });
-        
-        // Fall back to simulated data
-        const attentionScore = Math.round((4 + Math.random() * 5.5) * 10) / 10;
-        analysis = {
-          attentionScore,
-          colorImpact: Math.round((4 + Math.random() * 5.5) * 10) / 10,
-          readability: Math.round((4 + Math.random() * 5.5) * 10) / 10,
-          brandVisibility: Math.round((4 + Math.random() * 5.5) * 10) / 10,
-          suggestions: generateSuggestions(attentionScore),
-          analysis: "Simulated AI analysis due to API error."
+        /* 1️⃣  generate fake heatmap locally */
+        const heatmapSrc = await generateSimulatedHeatmap(image.preview);
+
+        /* 2️⃣  real AI analysis */
+        const base64 = await fileToBase64(image.file);
+        let analysis: PackagingAnalysis;
+
+        try {
+          analysis = await analyzePackageDesign(base64);
+        } catch (err) {
+          console.error("AI analysis failed:", err);
+          toast({
+            title: "AI analysis failed",
+            description: "Showing simulated scores instead.",
+            variant: "destructive"
+          });
+          const fallbackScore =
+            Math.round((4 + Math.random() * 5.5) * 10) / 10;
+          analysis = {
+            attentionScore: fallbackScore,
+            colorImpact: fallbackScore,
+            readability: fallbackScore,
+            brandVisibility: fallbackScore,
+            suggestions: generateSuggestions(fallbackScore),
+            analysis: "Simulated analysis due to API error."
+          };
+        }
+
+        /* 3️⃣  return combined result for UI */
+        return {
+          imageId: image.id,
+          originalSrc: image.preview,
+          heatmapSrc,
+          attentionScore: analysis.attentionScore,
+          colorImpact: analysis.colorImpact,
+          readability: analysis.readability,
+          brandVisibility: analysis.brandVisibility,
+          suggestions: analysis.suggestions,
+          aiAnalysis: analysis.analysis
         };
+      } catch (err) {
+        console.error("Unexpected analysis error:", err);
+        throw err;
       }
-      
-      return {
-        imageId: image.id,
-        originalSrc: image.preview,
-        heatmapSrc,
-        attentionScore: analysis.attentionScore,
-        colorImpact: analysis.colorImpact,
-        readability: analysis.readability,
-        brandVisibility: analysis.brandVisibility,
-        suggestions: analysis.suggestions,
-        aiAnalysis: analysis.analysis
-      };
-    } catch (error) {
-      console.error("Error during analysis:", error);
-      throw error;
-    }
-  }));
+    })
+  );
 };
 
-// Generate a simulated heatmap using Canvas
-const generateSimulatedHeatmap = async (imageUrl: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+/* ---------- Helpers ---------------------------------------------- */
+
+/* Canvas-based pseudo heatmap */
+const generateSimulatedHeatmap = (url: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
     const img = new Image();
-    
+
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
-      
-      if (!ctx) {
-        reject(new Error("Could not get canvas context"));
-        return;
-      }
-      
-      // Draw original image
+      if (!ctx) return reject(new Error("No 2D context"));
+
+      /* draw image first */
       ctx.drawImage(img, 0, 0);
-      
-      // Create heat effect
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      
-      // Simulate attention areas with some randomness
-      // but focus more on the center and top third (logo/brand area)
+
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
       for (let y = 0; y < canvas.height; y++) {
         for (let x = 0; x < canvas.width; x++) {
-          const index = (y * canvas.width + x) * 4;
-          
-          // Distance from center
-          const centerX = canvas.width / 2;
-          const centerY = canvas.height / 2;
-          const distanceFromCenter = Math.sqrt(
-            Math.pow((x - centerX) / (canvas.width / 2), 2) + 
-            Math.pow((y - centerY) / (canvas.height / 2), 2)
-          );
-          
-          // Top third gets more attention (brand/logo usually there)
-          const topFocus = 1 - Math.min(y / (canvas.height / 3), 1);
-          
-          // Some random variation
-          const randomFactor = Math.random() * 0.2;
-          
-          // Combine factors: center proximity + top focus + randomness
-          let heatFactor = (1 - distanceFromCenter) * 0.6 + topFocus * 0.3 + randomFactor;
-          
-          // Ensure it's in 0-1 range
-          heatFactor = Math.max(0, Math.min(1, heatFactor));
-          
-          // Apply heat colors (blue to red gradient)
-          if (heatFactor > 0.6) {
-            // Red to yellow (hot)
-            data[index] = 255;
-            data[index + 1] = Math.floor((heatFactor - 0.6) * 255 / 0.4);
-            data[index + 2] = 0;
+          const i = (y * canvas.width + x) * 4;
+
+          /* simple heuristic: center + top gets hotter */
+          const d =
+            Math.sqrt(
+              ((x - cx) / (canvas.width / 2)) ** 2 +
+                ((y - cy) / (canvas.height / 2)) ** 2
+            ) || 0;
+          const topBoost = 1 - Math.min(y / (canvas.height / 3), 1);
+          let heat = (1 - d) * 0.6 + topBoost * 0.3 + Math.random() * 0.2;
+          heat = Math.max(0, Math.min(1, heat));
+
+          if (heat > 0.6) {
+            /* red-yellow */
+            data[i] = 255;
+            data[i + 1] = ((heat - 0.6) * 255) / 0.4;
+            data[i + 2] = 0;
           } else {
-            // Blue to cyan to green (cold to warm)
-            data[index] = 0;
-            data[index + 1] = Math.floor(heatFactor * 255 / 0.6);
-            data[index + 2] = Math.floor((0.6 - heatFactor) * 255 / 0.6);
+            /* blue-cyan-green */
+            data[i] = 0;
+            data[i + 1] = (heat * 255) / 0.6;
+            data[i + 2] = ((0.6 - heat) * 255) / 0.6;
           }
-          
-          // Apply semi-transparency to blend with original image
-          data[index + 3] = Math.floor(128 * heatFactor);
+          data[i + 3] = 128 * heat; // alpha
         }
       }
-      
-      ctx.putImageData(imageData, 0, 0);
-      
-      // Draw original image again but with lower opacity to blend
+
+      ctx.putImageData(new ImageData(data, canvas.width, canvas.height), 0, 0);
+
       ctx.globalAlpha = 0.7;
       ctx.drawImage(img, 0, 0);
-      
-      resolve(canvas.toDataURL('image/jpeg'));
-    };
-    
-    img.onerror = () => {
-      reject(new Error("Error loading image for heatmap generation"));
-    };
-    
-    img.src = imageUrl;
-  });
-};
 
-// Generate suggestions based on the attention score
+      resolve(canvas.toDataURL("image/jpeg"));
+    };
+
+    img.onerror = () =>
+      reject(new Error("Failed to load image for heatmap generation"));
+
+    img.src = url;
+  });
+
+/* Suggestion generator */
 const generateSuggestions = (score: number): string[] => {
-  const allSuggestions = [
-    "Increase contrast between the product name and background to improve readability",
-    "Consider using larger font for key product claims",
-    "Position your logo in the top third of the package for maximum attention",
-    "Use visual cues like arrows or icons to direct attention to key features",
-    "Consider a brighter color palette to stand out on shelves",
-    "Reduce visual clutter to focus attention on your core message",
-    "Increase negative space around key messaging",
-    "Add a visual border around important information",
-    "Implement the rule of thirds in your package design layout",
-    "Use texture contrast to make key elements pop",
-    "Consider a distinctive silhouette for better shelf recognition",
-    "Increase color saturation for more visual impact",
-    "Add motion cues (lines, shapes) that lead to your key messaging",
-    "Reconsider the hierarchy of information based on customer priorities",
-    "Ensure your product usage is immediately clear from the front panel",
-    "Test alternative background colors that provide more contrast"
+  const ideas = [
+    "Increase contrast between product name and background.",
+    "Use a larger font for key claims.",
+    "Position the logo in the top third for maximum noticeability.",
+    "Reduce visual clutter to focus attention on core message.",
+    "Consider higher-saturation colors for stronger shelf pop.",
+    "Add negative space around hero elements.",
+    "Try a distinctive die-cut or silhouette.",
+    "Apply the rule of thirds to layout.",
+    "Add texture contrast to make elements pop.",
+    "Re-evaluate hierarchy based on consumer priorities."
   ];
-  
-  // Shuffle array
-  const shuffled = [...allSuggestions].sort(() => 0.5 - Math.random());
-  
-  // Number of suggestions based on score (lower score = more suggestions)
-  const numSuggestions = Math.max(2, Math.min(5, Math.round(10 - score)));
-  
-  return shuffled.slice(0, numSuggestions);
+  const shuffled = ideas.sort(() => 0.5 - Math.random());
+  const n = Math.max(2, Math.min(5, Math.round(10 - score)));
+  return shuffled.slice(0, n);
 };
