@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { zodTextFormat } from "openai/helpers/zod";
+import { zodTextFormat } from "openai/zod-response";
 import { z } from "zod";
 
 // Create the OpenAI client with the API key
