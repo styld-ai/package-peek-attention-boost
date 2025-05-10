@@ -53,10 +53,7 @@ export const analyzePackageDesign = async (imageBase64: string): Promise<Packagi
             },
             {
               type: "input_image",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
-                detail: "high"
-              }
+              image_url: `data:image/jpeg;base64,${imageBase64}`
             }
           ]
         }
