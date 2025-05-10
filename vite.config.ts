@@ -9,14 +9,18 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+
   plugins: [
     react(),
-    mode === 'development' &&
-    componentTagger(),
+    mode === "development" && componentTagger(),
   ].filter(Boolean),
+
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "src"),       //  ➜  import "@/foo"
     },
   },
+
+  // Small shim so the OpenAI SDK’s `crypto` fallback works in the browser.
+  define: { global: "globalThis" },
 }));
