@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
@@ -8,7 +7,8 @@ import { z } from "zod";
 const OPENAI_API_KEY = "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";
 
 const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY
+  apiKey: OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true  // Add this line to allow browser usage
 });
 
 // Define the schema for the packaging analysis output
