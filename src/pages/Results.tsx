@@ -4,11 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader, ArrowUp, CircleCheck, Key } from "lucide-react";
+import { Loader, ArrowUp, CircleCheck } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { analyzeImages } from '@/lib/api';
-import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 interface AnalysisResult {
   imageId: string;
@@ -25,7 +23,6 @@ const Results = () => {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("original");
-  const [apiKey, setApiKey] = useState<string>(localStorage.getItem('openai_api_key') || '');
   
   // Get the uploaded images from the location state
   const uploadedImages = location.state?.uploadedImages || [];
@@ -63,14 +60,6 @@ const Results = () => {
   
   const handleNewAnalysis = () => {
     navigate('/');
-  };
-  
-  const saveApiKey = () => {
-    localStorage.setItem('openai_api_key', apiKey);
-    toast({
-      title: "API Key Saved",
-      description: "Your OpenAI API key has been saved for this session",
-    });
   };
   
   const renderLoadingState = () => (
@@ -185,7 +174,7 @@ const Results = () => {
                       </div>
                     ) : (
                       <p className="text-gray-500 italic">
-                        No AI analysis available. Set your OpenAI API key to enable AI analysis.
+                        No AI analysis available.
                       </p>
                     )}
                   </div>
@@ -196,38 +185,7 @@ const Results = () => {
         </TabsContent>
       </Tabs>
       
-      <div className="flex justify-between items-center">
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" className="flex items-center">
-              <Key className="mr-2 h-4 w-4" />
-              Set OpenAI API Key
-            </Button>
-          </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>OpenAI API Key</SheetTitle>
-              <SheetDescription>
-                Enter your OpenAI API key to enable AI-powered packaging analysis
-              </SheetDescription>
-            </SheetHeader>
-            <div className="py-4">
-              <Input
-                type="password"
-                placeholder="sk-..."
-                className="mb-4"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-              <Button onClick={saveApiKey}>Save API Key</Button>
-              <p className="text-xs text-gray-500 mt-4">
-                Your API key is stored locally in your browser and is only used to make requests to OpenAI. 
-                For better security, consider implementing a backend service.
-              </p>
-            </div>
-          </SheetContent>
-        </Sheet>
-        
+      <div className="flex justify-end items-center">
         <Button onClick={handleNewAnalysis} className="flex items-center">
           <ArrowUp className="mr-2 h-4 w-4" />
           Analyze New Images

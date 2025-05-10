@@ -17,6 +17,9 @@ interface AnalysisResult {
   aiAnalysis?: string; // New field for raw AI analysis
 }
 
+// Hardcoded API key
+const OPENAI_API_KEY = "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";
+
 // In a real app, this would call a backend API
 // For this MVP, we're simulating the backend processing and integrating with OpenAI
 export const analyzeImages = async (images: UploadedImage[]): Promise<AnalysisResult[]> => {
@@ -40,13 +43,12 @@ export const analyzeImages = async (images: UploadedImage[]): Promise<AnalysisRe
       let aiAnalysis = "";
       
       try {
-        // Call OpenAI API
+        // Call OpenAI API with hardcoded API key
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // WARNING: This is insecure for production! In a real app, the API key should be in a secure backend
-            "Authorization": `Bearer ${localStorage.getItem('openai_api_key')}` 
+            "Authorization": `Bearer ${OPENAI_API_KEY}`
           },
           body: JSON.stringify(prompt)
         });
@@ -67,7 +69,7 @@ export const analyzeImages = async (images: UploadedImage[]): Promise<AnalysisRe
         console.error("Error calling OpenAI API", error);
         toast({
           title: "AI Analysis Failed",
-          description: "Falling back to simulated analysis. Check your API key.",
+          description: "Falling back to simulated analysis. API error occurred.",
           variant: "destructive"
         });
         
