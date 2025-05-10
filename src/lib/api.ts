@@ -1,5 +1,6 @@
 
 import { toast } from "@/hooks/use-toast";
+import { createPackageAnalysisPrompt, imageUrlToBase64, parseOpenAIResponse } from "./openai";
 
 interface UploadedImage {
   id: string;
@@ -13,31 +14,80 @@ interface AnalysisResult {
   heatmapSrc: string;
   attentionScore: number;
   suggestions: string[];
+  aiAnalysis?: string; // New field for raw AI analysis
 }
 
 // In a real app, this would call a backend API
-// For this MVP, we're simulating the backend processing
+// For this MVP, we're simulating the backend processing and integrating with OpenAI
 export const analyzeImages = async (images: UploadedImage[]): Promise<AnalysisResult[]> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  // First, show a loading toast
+  toast({
+    title: "Analyzing images",
+    description: "Processing images with AI. This may take a moment...",
+  });
   
   return Promise.all(images.map(async (image) => {
-    // Generate a simulated heatmap by applying a color overlay
-    const heatmapSrc = await generateSimulatedHeatmap(image.preview);
-    
-    // Generate random score between 4 and 9.5
-    const attentionScore = Math.round((4 + Math.random() * 5.5) * 10) / 10;
-    
-    // Generate suggestions based on the score
-    const suggestions = generateSuggestions(attentionScore);
-    
-    return {
-      imageId: image.id,
-      originalSrc: image.preview,
-      heatmapSrc,
-      attentionScore,
-      suggestions
-    };
+    try {
+      // Generate a simulated heatmap by applying a color overlay
+      const heatmapSrc = await generateSimulatedHeatmap(image.preview);
+      
+      // Get AI analysis from OpenAI
+      const imageBase64 = imageUrlToBase64(image.preview);
+      const prompt = createPackageAnalysisPrompt(imageBase64);
+      
+      let attentionScore = 0;
+      let suggestions: string[] = [];
+      let aiAnalysis = "";
+      
+      try {
+        // Call OpenAI API
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            // WARNING: This is insecure for production! In a real app, the API key should be in a secure backend
+            "Authorization": `Bearer ${localStorage.getItem('openai_api_key')}` 
+          },
+          body: JSON.stringify(prompt)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`OpenAI API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        aiAnalysis = data.choices[0].message.content;
+        
+        // Parse the OpenAI response
+        const parsed = parseOpenAIResponse(data);
+        attentionScore = parsed.attentionScore;
+        suggestions = parsed.suggestions;
+        
+      } catch (error) {
+        console.error("Error calling OpenAI API", error);
+        toast({
+          title: "AI Analysis Failed",
+          description: "Falling back to simulated analysis. Check your API key.",
+          variant: "destructive"
+        });
+        
+        // Fall back to simulated data
+        attentionScore = Math.round((4 + Math.random() * 5.5) * 10) / 10;
+        suggestions = generateSuggestions(attentionScore);
+      }
+      
+      return {
+        imageId: image.id,
+        originalSrc: image.preview,
+        heatmapSrc,
+        attentionScore,
+        suggestions,
+        aiAnalysis
+      };
+    } catch (error) {
+      console.error("Error during analysis:", error);
+      throw error;
+    }
   }));
 };
 

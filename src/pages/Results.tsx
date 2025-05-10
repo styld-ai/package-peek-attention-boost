@@ -4,9 +4,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader, ArrowUp, CircleCheck } from "lucide-react";
+import { Loader, ArrowUp, CircleCheck, Key } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { analyzeImages } from '@/lib/api';
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 interface AnalysisResult {
   imageId: string;
@@ -14,6 +16,7 @@ interface AnalysisResult {
   heatmapSrc: string;
   attentionScore: number;
   suggestions: string[];
+  aiAnalysis?: string;
 }
 
 const Results = () => {
@@ -22,6 +25,7 @@ const Results = () => {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("original");
+  const [apiKey, setApiKey] = useState<string>(localStorage.getItem('openai_api_key') || '');
   
   // Get the uploaded images from the location state
   const uploadedImages = location.state?.uploadedImages || [];
@@ -61,6 +65,14 @@ const Results = () => {
     navigate('/');
   };
   
+  const saveApiKey = () => {
+    localStorage.setItem('openai_api_key', apiKey);
+    toast({
+      title: "API Key Saved",
+      description: "Your OpenAI API key has been saved for this session",
+    });
+  };
+  
   const renderLoadingState = () => (
     <div className="flex flex-col items-center justify-center py-20">
       <div className="mb-4">
@@ -74,9 +86,10 @@ const Results = () => {
   const renderResults = () => (
     <div className="space-y-8">
       <Tabs defaultValue="original" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="original">Original Images</TabsTrigger>
           <TabsTrigger value="heatmap">Attention Heatmaps</TabsTrigger>
+          <TabsTrigger value="ai">AI Analysis</TabsTrigger>
         </TabsList>
         
         <TabsContent value="original" className="space-y-6">
@@ -142,9 +155,79 @@ const Results = () => {
             </Card>
           ))}
         </TabsContent>
+        
+        <TabsContent value="ai" className="space-y-6">
+          {results.map((result) => (
+            <Card key={`ai-${result.imageId}`} className="overflow-hidden">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <CircleCheck className="mr-2 h-5 w-5 text-green-500" />
+                  AI Design Analysis
+                </CardTitle>
+                <CardDescription>
+                  Complete AI analysis of your packaging design
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <img 
+                      src={result.originalSrc} 
+                      alt="Original packaging" 
+                      className="w-full rounded-md object-contain max-h-80"
+                    />
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-md">
+                    <h4 className="font-medium text-lg mb-2">AI Analysis</h4>
+                    {result.aiAnalysis ? (
+                      <div className="text-sm whitespace-pre-wrap">
+                        {result.aiAnalysis}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">
+                        No AI analysis available. Set your OpenAI API key to enable AI analysis.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
       </Tabs>
       
-      <div className="flex justify-center">
+      <div className="flex justify-between items-center">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" className="flex items-center">
+              <Key className="mr-2 h-4 w-4" />
+              Set OpenAI API Key
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>OpenAI API Key</SheetTitle>
+              <SheetDescription>
+                Enter your OpenAI API key to enable AI-powered packaging analysis
+              </SheetDescription>
+            </SheetHeader>
+            <div className="py-4">
+              <Input
+                type="password"
+                placeholder="sk-..."
+                className="mb-4"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <Button onClick={saveApiKey}>Save API Key</Button>
+              <p className="text-xs text-gray-500 mt-4">
+                Your API key is stored locally in your browser and is only used to make requests to OpenAI. 
+                For better security, consider implementing a backend service.
+              </p>
+            </div>
+          </SheetContent>
+        </Sheet>
+        
         <Button onClick={handleNewAnalysis} className="flex items-center">
           <ArrowUp className="mr-2 h-4 w-4" />
           Analyze New Images
