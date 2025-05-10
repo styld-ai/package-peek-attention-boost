@@ -1,8 +1,9 @@
-
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import { Loader } from "lucide-react";
 
 interface UploadedImage {
   id: string;
@@ -13,6 +14,8 @@ interface UploadedImage {
 const Index = () => {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const navigate = useNavigate();
   
   const handleImageUpload = (files: FileList | null) => {
     if (!files) return;
@@ -73,7 +76,7 @@ const Index = () => {
     handleImageUpload(e.dataTransfer.files);
   };
   
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (uploadedImages.length === 0) {
       toast({
         title: "No images selected",
@@ -83,11 +86,23 @@ const Index = () => {
       return;
     }
     
-    // Here we would normally process the images and send to API
-    toast({
-      title: "Analysis started",
-      description: `Analyzing ${uploadedImages.length} image${uploadedImages.length > 1 ? 's' : ''}...`,
-    });
+    setIsSubmitting(true);
+    
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Navigate to results page with the uploaded images data
+      navigate('/results', { state: { uploadedImages } });
+    } catch (error) {
+      console.error("Error submitting images:", error);
+      toast({
+        title: "Submission error",
+        description: "There was a problem submitting your images. Please try again.",
+        variant: "destructive"
+      });
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -171,10 +186,17 @@ const Index = () => {
             <CardFooter>
               <Button 
                 onClick={handleSubmit}
-                disabled={uploadedImages.length === 0}
+                disabled={uploadedImages.length === 0 || isSubmitting}
                 className="ml-auto"
               >
-                Analyze Packages
+                {isSubmitting ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Analyze Packages"
+                )}
               </Button>
             </CardFooter>
           </Card>
