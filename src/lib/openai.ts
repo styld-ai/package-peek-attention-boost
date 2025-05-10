@@ -39,7 +39,7 @@ export const analyzePackageDesign = async (imageBase64: string): Promise<Packagi
           role: "system",
           content: [
             {
-              type: "input_text",
+              type: "text",
               text: "You are a packaging design expert with expertise in consumer attention. Analyze packaging designs and provide specific, actionable feedback with numeric scores."
             }
           ]
@@ -48,12 +48,15 @@ export const analyzePackageDesign = async (imageBase64: string): Promise<Packagi
           role: "user",
           content: [
             {
-              type: "input_text",
+              type: "text",
               text: "Analyze this product packaging design. Focus on color, contrast, visual hierarchy, branding elements, and overall composition."
             },
             {
-              type: "input_image",
-              image_url: `data:image/jpeg;base64,${imageBase64}`
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${imageBase64}`,
+                detail: "high"
+              }
             }
           ]
         }
